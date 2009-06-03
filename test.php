@@ -1,25 +1,31 @@
 <?php
 
-/**
- * A few bloated tests, these should be reorganized and updated.
- */
-
 require_once 'view.php';
 
 class ViewTest extends UnitTestCase {
 	
-	
+	private $TestTemplateDirectory = '.';
 	private $TestTemplateFileName = 'test_template_file.txt';
 	
+	private $TestData = array();
 	
+
 	function setUp()
 	{
+		View::SetDirectory($this->TestTemplateDirectory);
+		
 		// View class requires a template file, so create an empty file.
 		@touch($this->TestTemplateFileName);
+		
+		$this->TestData['bear'] = 'teddy';
+		$this->TestData['kitten'] = 'fluffy';
+		$this->TestData['pig'] = 'piglet';
 	}
 
+	
 	function tearDown()
 	{
+		$this->TestData = array();
 		@unlink($this->TestTemplateFileName);
 	}
 	
@@ -31,65 +37,73 @@ class ViewTest extends UnitTestCase {
 		@unlink($this->TestTemplateFileName);
 		$this->assertFalse(file_exists($this->TestTemplateFileName));
 	}
-	
-	
-	function testConstructorSetFileName()
-	{
-		$view = new View($this->TestTemplateFileName);
-		$this->assertTrue($view->GetFileName() == $this->TestTemplateFileName);
-	}
-	
 
-	function testDataArrayGetSet()
+	
+	function testVariablesAccessors()
 	{
 		$view = new View();
-		$this->assertTrue(is_array($view->GetDataArray()));
+		$returnArray = $view->Set($this->TestData);
 		
-		$view->SetDataArray("this shouldn't work");
-		$this->assertTrue(is_array($view->GetDataArray()));
-		
-		$view->SetDataArray(array('test'=>'variable'));
-		$this->assertTrue($view->GetDataArray() == array('test'=>'variable'));
-		$this->assertTrue($view->test == 'variable');
-	}
-	
+		$this->assertTrue($view->bear == 'teddy');
+		$this->assertTrue($view->kitten == 'fluffy');
+		$this->assertFalse($view->bunny);
+		$this->assertIsA($returnArray, 'View');
 
-	function testVariableSetAndGet()
+		$returnSingle = $view->Set('bunny', 'floppy');
+		$this->assertTrue($view->bunny == 'floppy');
+		$this->assertIsA($returnSingle, 'View');
+		
+		$view->dog = 'buddy';
+		$this->assertTrue($view->dog == 'buddy');
+		
+		$view->Set('_testMessage', 'Hello, World!');
+		$this->assertTrue($view->_testMessage == 'Hello, World!');
+		
+		$view->Set('testNumeric', 123);
+		$this->assertTrue($view->testNumeric === 123);
+		
+		$anotherView = new View();
+		$view->Set('testObject', $anotherView);
+		$this->assertTrue(is_object($view->testObject));
+	}
+
+	function testExistingPropertiesConflicts()
 	{
-		$view = new View($this->TestTemplateFileName);
-		
-		$view->SetVariable('testMessage', 'Hello, World!');
-		$this->assertTrue($view->GetVariable('testMessage') == 'Hello, World!');
-		
-		// Test existing variables
-		$this->assertFalse($view->GetVariable('fileName') == $this->TestTemplateFileName);
+		$view = new View();
 		$this->assertFalse($view->fileName == $this->TestTemplateFileName);
 		$this->assertFalse(isset($view->fileName));
 		$view->fileName = 'test';
 		$this->assertTrue($view->fileName == 'test');
-		$this->assertTrue($view->GetFileName() == $this->TestTemplateFileName);
+		$this->assertFalse(isset($view->data));
+		$this->assertFalse(isset($view->directory));
+	}
+	
+	function testGetFilePath()
+	{
+		$view = new View();
+		$this->assertTrue($view->GetFilePath() === false);
 		
-		$view->SetVariable('testNumeric', 123);
-		$this->assertTrue($view->GetVariable('testNumeric') === 123);
+		$view->SetFileName($this->TestTemplateFileName);
+		$this->assertFalse($view->GetFilePath() === false);
+		$this->assertTrue($view->GetFilePath() == $this->TestTemplateDirectory.'/'.$this->TestTemplateFileName);
 		
-		// Alternative syntax with magic methods
-		$this->assertTrue($view->testNumeric === 123);
-		$view->SomeTestVariable = 'FooBar';
-		$this->assertTrue($view->GetVariable('SomeTestVariable') == 'FooBar');
-		$this->assertTrue($view->SomeTestVariable == 'FooBar');
+		$view->SetDirectory('');
+		$this->assertTrue($view->GetFilePath() == $this->TestTemplateFileName);
 		
-		$view->SetVariable(456, 'Goats eat grass');
-		$this->assertTrue($view->GetVariable(456) == 'Goats eat grass');
+		$view->SetDirectory('foobar');
+		$this->assertFalse($view->GetFilePath());
 		
-		$view->SetVariable(null, 'Null variable');
-		$this->assertTrue($view->GetVariable(null) == 'Null variable');
-		$this->assertTrue($view->GetVariable('') == 'Null variable');
-		$this->assertFalse($view->GetVariable(0) == 'Null variable');
-
-		$anotherView = new View($this->TestTemplateFileName);
-		
-		$view->SetVariable('testObject', $anotherView);
-		$this->assertTrue(is_object($view->GetVariable('testObject')));
+		$view->SetDirectory('./');
+		$this->assertTrue(file_exists($view->GetFilePath()));
+		$view->SetDirectory('.////////');
+		$this->assertTrue(file_exists($view->GetFilePath()));
+	}
+	
+	function testFactory()
+	{
+		file_put_contents($this->TestTemplateFileName, 'Hello <?php echo $bear; ?>');
+		$this->assertTrue(View::Factory($this->TestTemplateFileName, $this->TestData) == 'Hello teddy');
+		$this->assertTrue(View::Factory()->Set('bear', 'vinnie')->SetFileName($this->TestTemplateFileName) == 'Hello vinnie');
 	}
 	
 	function testRenderTemplate()
@@ -111,20 +125,13 @@ class ViewTest extends UnitTestCase {
 		file_put_contents($this->TestTemplateFileName, 'Foo <?php echo $this->TestVariable; ?> data');
 		$this->assertTrue($view->Render() == 'Foo bar data');
 		
-		// Alternative syntax with magic method
 		$this->assertTrue($view == 'Foo bar data');
-		
 		
 		@unlink($this->TestTemplateFileName);
 		$this->assertTrue($view == '');
 		
-		$view->SetFileName(null);
-		$this->assertTrue($view == '');
-		
 		$view->SetFileName('');
 		$this->assertTrue($view == '');
-		
 	}
 	
-
 }

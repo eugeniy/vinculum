@@ -68,7 +68,7 @@ class View {
 	 */
 	public static function SetDirectory($directory)
 	{
-		self::$directory = realpath($directory);
+		self::$directory = $directory;
 	}
 	
 	/**
@@ -78,7 +78,8 @@ class View {
 	 */
 	public function GetFilePath()
 	{
-		$path = self::$directory.'/'.$this->fileName;
+		// TODO: Have to change this eventually to remove duplicate slashes.
+		$path = (empty(self::$directory) ? '' : self::$directory.'/').$this->fileName;
 		
 		if (is_file($path) AND is_readable($path))
 			return $path;
