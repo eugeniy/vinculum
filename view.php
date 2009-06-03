@@ -5,70 +5,91 @@
  * @author Eugeniy Kalinin
  * @license http://pandabytes.info/license/
  * @link http://pandabytes.info/vinculum/
- *
  */
 class View {
 	
-	protected $fileName;
+	protected static $directory = './views';
+	protected $fileName = null;
 	protected $data = array();
 
 	/**
-	 * Constructor.
-	 * @param String $fileName
-	 * @param Array $data
+	 * Set the view and load view data.
+	 * @param  string  view file name
+	 * @param  array   array of variables
 	 * @return void
 	 */
 	public function __construct($fileName = null, $data = null)
 	{
-		$this->SetFileName($fileName);
-		$this->SetDataArray($data);
+		if ( ! empty($fileName))
+			$this->SetFileName($fileName);
+		
+		if (is_array($data) AND ! empty($data))
+			$this->Set($data);
 	}
 
-	
 	/**
-	 * Factory method.
-	 * Creates and returns an instance of the class.
+	 * Create a new view.
 	 * @example echo View::Factory("checkout.php");
-	 * @param String $fileName
-	 * @param Array $data
-	 * @return Class instance
+	 * @param   string  view file name
+	 * @param   array   array of variables
+	 * @return  object  class instance
 	 */
 	public static function Factory($fileName = null, $data = null)
 	{
 		return new View($fileName, $data);
 	}
 	
-	
 	/**
-	 * Outputs the template onto the screen.
-	 * Variables set up to this point are passed to the template.
-	 * @return string template data
+	 * Render the view.
+	 * @return  string  view data
 	 */
-	public function Render($fileName = null)
+	public function Render()
 	{
-		// Allow dynamic file name changes
-		if ($fileName !== null)
-			$this->SetFileName($fileName);
-		
 		// Start capturing the output
 		ob_start();
 		
-		if (is_string($this->fileName) AND is_readable($this->fileName))
+		if ( $this->GetFilePath() )
 		{
 			// Import variables into the namespace
 			extract($this->data, EXTR_SKIP);
 			// Include the view, allow access to class instance
-			include $this->fileName;
+			include $this->GetFilePath();
 		}
+
 		// Dump the buffer and return the output
 		return ob_get_clean();
 	}
 	
-
 	/**
-	 * File name setter.
-	 * @param string $fileName
-	 * @return Current class instance
+	 * Set the path to directory containing view files.
+	 * @example View::SetDirectory("templates");
+	 * @param   string  directory path
+	 * @return  void
+	 */
+	public static function SetDirectory($directory)
+	{
+		self::$directory = realpath($directory);
+	}
+	
+	/**
+	 * Get a full path to the view file.
+	 * @return  string  view file path
+	 * @return  bool    FALSE if the file is not found or unreadable
+	 */
+	public function GetFilePath()
+	{
+		$path = self::$directory.'/'.$this->fileName;
+		
+		if (is_file($path) AND is_readable($path))
+			return $path;
+		
+		return false;
+	}
+	
+	/**
+	 * Set a view file name.
+	 * @param  string  file name
+	 * @return object  current class instance
 	 */
 	public function SetFileName($fileName)
 	{
@@ -76,95 +97,57 @@ class View {
 		return $this;
 	}
 	
-	
 	/**
-	 * File name getter.
-	 * @return string $this->fileName
+	 * Set a view variable.
+	 * @example $view->Set('pandaName', 'Bobby');
+	 * @example $view->Set(array('title'=>'Panda World', 'year'=>2009));
+	 * @param   string|array  name of a variable or an array of variables
+	 * @param   mixed         value for a single variable
+	 * @return  object        current class instance
 	 */
-	public function GetFileName()
+	public function Set($key, $value = null)
 	{
-		return $this->fileName;
-	}
-
-
-	/**
-	 * Set the variable for use in the template.
-	 * @param string $key - variable name
-	 * @param $value - variable value
-	 * @return Current class instance
-	 */
-	public function SetVariable($key, $value)
-	{
-		$this->data[$key] = $value;
+		if (is_array($key))
+			$this->data = array_merge($this->data, $key);
+		
+		else $this->__set($key, $value);
+		
 		return $this;
 	}
 	
-	
 	/**
-	 * Get the variable to be used in the template.
-	 * @param string $key - variable name
-	 * @return Value stored under the given variable name or NULL if not found.
-	 */
-	public function GetVariable($key)
-	{
-		if (isset($this->data[$key]))
-			return $this->data[$key];
-		return null;
-	}
-	
-	
-	/**
-	 * Sets variables using an associative array.
-	 * @param Array $data
-	 * @return Current class instance
-	 */
-	public function SetDataArray($data)
-	{
-		if (is_array($data))
-			$this->data = array_merge($this->data, $data);
-		return $this;
-	}
-
-	
-	/**
-	 * Data array getter.
-	 * @return Array
-	 */
-	public function GetDataArray()
-	{
-		return $this->data;
-	}
-	
-	
-	/**
-	 * Magic method to set unknown properties.
-	 * It can be used to pass variables to the template.
+	 * Magic method to set a view variable.
 	 * @example $view->Message = "Hello, World!";
+	 * @param   string  variable key
+	 * @param   mixed   variable value
+	 * @return  void
 	 */
 	public function __set($key, $value)
 	{
-		$this->SetVariable($key, $value);
+		$this->data[$key] = $value;
 	}
 
-	
 	/**
-	 * Magic method to get unknown properties.
-	 * It can be used to retrieve template variables.
+	 * Magic method to get a view variable.
 	 * @example echo $view->Message;
+	 * @param   string  variable key
+	 * @return  mixed   variable value if the key is found
+	 * @return  bool    FALSE if the key is not found
 	 */
 	public function __get($key)
 	{
-		return $this->GetVariable($key);
+		if (isset($this->data[$key]))
+			return $this->data[$key];
+		return false;
 	}
 	
-	
 	/**
-	 * Magic method to automatically render when instance is used as a string.
+	 * Magic method to convert a class instance into a string.
 	 * @example echo $view;
+	 * @return  string
 	 */
 	public function __toString()
 	{
-		return $this->Render();
+		return (string) $this->Render();
 	}
-	
 }
