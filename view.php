@@ -11,6 +11,7 @@ class View {
 	protected static $directory = './views';
 	protected $fileName = null;
 	protected $data = array();
+	protected static $globalData = array();
 
 	/**
 	 * Set the view and load view data.
@@ -50,8 +51,11 @@ class View {
 		
 		if ( $this->GetFilePath() )
 		{
-			// Import variables into the namespace
+			// Import local variables into the namespace
 			extract($this->data, EXTR_SKIP);
+			// Import global variables
+			extract(self::$globalData, EXTR_SKIP);
+			
 			// Include the view, allow access to class instance
 			include $this->GetFilePath();
 		}
@@ -99,7 +103,7 @@ class View {
 	}
 	
 	/**
-	 * Set a view variable.
+	 * Set a local view variable.
 	 * @example $view->Set('pandaName', 'Bobby');
 	 * @example $view->Set(array('title'=>'Panda World', 'year'=>2009));
 	 * @param   string|array  name of a variable or an array of variables
@@ -117,7 +121,23 @@ class View {
 	}
 	
 	/**
-	 * Magic method to set a view variable.
+	 * Set a global view variable.
+	 * @param   string|array  name of a variable or an array of variables
+	 * @param   mixed         value for a single variable
+	 * @return  object        current class instance
+	 */
+	public function SetGlobal($key, $value = null)
+	{
+		if (is_array($key))
+			self::$globalData = array_merge(self::$globalData, $key);
+		
+		else self::$globalData[$key] = $value;
+		
+		return $this;
+	}
+	
+	/**
+	 * Magic method to set a local view variable.
 	 * @example $view->Message = "Hello, World!";
 	 * @param   string  variable key
 	 * @param   mixed   variable value
@@ -130,6 +150,7 @@ class View {
 
 	/**
 	 * Magic method to get a view variable.
+	 * Local variables have a precedent over global.
 	 * @example echo $view->Message;
 	 * @param   string  variable key
 	 * @return  mixed   variable value if the key is found
@@ -139,7 +160,11 @@ class View {
 	{
 		if (isset($this->data[$key]))
 			return $this->data[$key];
-		return false;
+			
+		elseif (isset(self::$globalData[$key]))
+			return self::$globalData[$key];
+		
+		else return false;
 	}
 	
 	/**
